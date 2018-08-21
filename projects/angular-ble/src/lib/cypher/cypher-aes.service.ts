@@ -119,7 +119,7 @@ export class CypherAesService {
   /**
    * Add padding to the list
    */
-  addPadding(arrayBuffer: Uint8Array | Uint16Array | Uint32Array) {
+  private addPadding(arrayBuffer: Uint8Array | Uint16Array | Uint32Array) {
     const paddingLength = (Math.ceil(Array.from(arrayBuffer).length / 16)) * 16;
     const paddingList = new Array(paddingLength - Array.from(arrayBuffer).length).fill(0);
     return new Uint8Array(Array.from(arrayBuffer).concat(paddingList));
