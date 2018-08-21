@@ -16,6 +16,14 @@
     "lib": [
       "es2017",
       "dom"
-    ]
+    ],
+    "paths": {
+      "angular-ble": [
+        "dist/angular-ble"
+      ],
+      "angular-ble/*": [
+        "dist/angular-ble/*"
+      ]
+    }
   }
 }

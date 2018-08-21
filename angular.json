@@ -121,6 +121,46 @@
           }
         }
       }
+    },
+    "angular-ble": {
+      "root": "projects/angular-ble",
+      "sourceRoot": "projects/angular-ble/src",
+      "projectType": "library",
+      "prefix": "ble",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-ng-packagr:build",
+          "options": {
+            "tsConfig": "projects/angular-ble/tsconfig.lib.json",
+            "project": "projects/angular-ble/ng-package.json"
+          },
+          "configurations": {
+            "production": {
+              "project": "projects/angular-ble/ng-package.prod.json"
+            }
+          }
+        },
+        "test": {
+          "builder": "@angular-devkit/build-angular:karma",
+          "options": {
+            "main": "projects/angular-ble/src/test.ts",
+            "tsConfig": "projects/angular-ble/tsconfig.spec.json",
+            "karmaConfig": "projects/angular-ble/karma.conf.js"
+          }
+        },
+        "lint": {
+          "builder": "@angular-devkit/build-angular:tslint",
+          "options": {
+            "tsConfig": [
+              "projects/angular-ble/tsconfig.lib.json",
+              "projects/angular-ble/tsconfig.spec.json"
+            ],
+            "exclude": [
+              "**/node_modules/**"
+            ]
+          }
+        }
+      }
     }
   },
   "defaultProject": "angular-ble-app"
