@@ -1,5 +1,5 @@
 {
-  "name": "angular-ble-app",
+  "name": "@nebulae/angular-ble-app",
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
@@ -10,7 +10,10 @@
     "package": "npm run build_lib && npm run npm_pack",
     "test": "ng test",
     "lint": "ng lint",
-    "e2e": "ng e2e"
+    "e2e": "ng e2e",
+    "build_lib": "ng build --prod angular-ble",
+    "npm_pack": "cd dist/angular-ble && npm pack",
+    "package": "npm run build_lib && npm run npm_pack"
   },
   "private": true,
   "dependencies": {
