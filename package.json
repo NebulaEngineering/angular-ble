@@ -25,6 +25,8 @@
     "@angular/platform-browser": "^6.0.3",
     "@angular/platform-browser-dynamic": "^6.0.3",
     "@angular/router": "^6.0.3",
+    "@manekinekko/angular-web-bluetooth": "^3.0.0--b",
+    "@types/web-bluetooth": "0.0.4",
     "aes-js": "^3.1.1",
     "core-js": "^2.5.4",
     "rxjs": "^6.0.0",
