@@ -1,4 +1,6 @@
-![NebulaE](docs/images/nebula.png 'Nebula Engineering SAS')
+<div align="center">
+<img src="docs/images/nebula.png" width="250" />
+</div>
 
 # @nebulae/angular-ble
 
