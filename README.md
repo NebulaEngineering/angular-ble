@@ -29,7 +29,26 @@ protocol
       - [bytesToText](#bytesToText)
       - [bytesTohex](#bytesTohex)
       - [hexToBytes](#hexToBytes)
-- [Bluetooth BLE](#aes_cypher)
+- [Bluetooth BLE](#bluetooth_ble)
+  - [Exposed Methods](#exposed_Methods_ble)
+    - [Bluetooth BLE commons](#bluetooth_ble_commons)
+      - [getDevice$](#get_device)
+      - [startNotifierListener$](#start_notifier_listener)
+      - [connectDevice$](#connect_device)
+      - [disconnectDevice](#disconnect_device)
+      - [readDeviceValue$](#read_device_value)
+      - [writeDeviceValue$](#write_device_value)
+      - [sendToNotifier$](#send_to_notifier)
+    - [GATT Utils](#gatt_utils)
+      - [getBatteryLevel$](#get_battery_level)
+      - [getManufacturerName$](#get_manufacturer_name)
+      - [getModelNumber$](#get_model_number)
+      - [getSerialNumber$](#get_serial_number)
+      - [getHardwareRevision$](#get_hardware_revision)
+      - [getFirmwareRevision$](#get_firmware_revision)
+      - [getSoftwareRevision$](#get_software_revision)
+      - [getSystemId$](#get_system_id)
+      - [getPnpId$](#get_pnp_id)
 
 # Installation <a name="installation"></a>
 
@@ -117,6 +136,68 @@ export class AppModule {}
   }
   }
   ```
+
+  - Use Bluetooth BLE in your service/component
+
+  here is an annotated example using the `@nebulae/angular-ble` bluetooth service
+```javascript
+ import { Component, OnInit } from '@angular/core';
+  import { CypherAesService } from 'angular-ble';
+  @Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+  })
+  export class AppComponent implements OnInit {
+  // Current device status
+  deviceConnected = false;
+  // Current device battery level
+  batteryLevel = '';
+  // Current device manufacturer name
+  manufacturerName = '';
+  // Current device model number
+  modelNumber = '';
+  // Current device serial number
+  serialNumber = '';
+  // Current device hardware Revision
+  hardwareRevision = '';
+  // Current device firmware revision
+  firmwareRevision = '';
+  // Current device software revision
+  softwareRevision = '';
+  // Current device system id
+  systemId;
+  // Current device pnp id
+  pnpId;
+  constructor(private bluetoothService: BluetoothService) {}
+
+  title = 'angular-ble-app';
+
+  ngOnInit(): void {
+    // Start a listener that delivers the currently connected device (if the returned
+    // device is null means than the device connection has been lost)
+    this.bluetoothService.getDevice$().subscribe(device => {
+      this.deviceConnected = device? true : false;
+    });
+  }
+
+  //stablish a connection between the browser and a bluetooth device
+  connectToDevice() {
+    this.bluetoothService.connectDevice$().subscribe(res => {});
+  } 
+  // end the stablished connection between the browser and a bluetooth 
+  //device
+  disconnectToDevice() {
+    this.bluetoothService.disconnectDevice();
+  }
+  //get the current device battery level
+  getBatteryLevel() {
+    this.bluetoothService.getBatteryLevel$().subscribe(res => {
+      this.batteryLevel = res+"";
+    })
+  }
+  }
+```
 
   # AES cypher <a name="aes_cypher"></a>
 
@@ -338,3 +419,159 @@ export class AppModule {}
   ```javascript
   this.cypherAesService.hexToBytes(hex)
   ```
+## Bluetooth BLE
+
+this service is based on [Web Bluetooth](https://webbluetoothcg.github.io/web-bluetooth/) please see for more info 
+
+## Exposed Methods <a name="exposed_Methods_ble"></a>
+
+### Bluetooth BLE commons
+
+#### getDevice$ <a name="get_device"></a>
+get the current device, if the device return null is because the connection has lost
+```javascript
+this.bluetoothService.getDevice$().subscribe(device => {
+    //here you receive the device        
+    });
+```
+
+#### startNotifierListener$ <a name="start_notifier_listener"></a>
+start a stream by notifiers characteristics
+```javascript
+this.bluetoothService.startNotifierListener$('battery_service','battery_level').subscribe(result => {
+      console.log('stream value: ', result);
+    });
+```
+
+#### connectDevice$ <a name="connect_device"></a>
+Discover all available devices and connect to a selected device
+```javascript
+this.bluetoothService.connectDevice$().subscribe(res => {
+  //here you receive the device if the connection is succeful
+});
+```
+
+#### disconnectDevice <a name="disconnect_device"></a>
+Disconnect the current device
+this.bluetoothService.disconnectDevice();
+
+#### readDeviceValue <a name="read_device_value"></a>
+get a data from the device using a service and the characteristic
+```javascript
+this.bluetoothService.readDeviceValue$('battery_service','battery_level').subscribe(result => {
+      console.log('stream value: ', result);
+    });
+```
+
+#### sendToNotifier$ <a name="send_to_notifier"></a>
+Send a message using a notifier characteristic (message must be in bytes)
+```javascript
+this.bluetoothService.sentToNotifier$('hereMessage','here service', 'here characterisitic').subscribe(result =>{})
+```
+
+#### getPrimaryService$ <a name="get_primary_service"></a>
+Get a primary service instance using the service UIID or GATT identifier
+```javascript
+this.bluetoothService.getPrimariService$('here_the_service_identifier').subscribe(result =>{
+  console.log('Service instance: ',result);
+})
+```
+
+#### getCharacteristic$ <a name="get_characteristic"></a>
+Get a characterisitic instance using the service instance and a characteristic UUID
+```javascript
+this.bluetoothService.getCharacteristic$(serviceInstance,'here_the_characteristic_identifier').subscribe(result =>{
+  console.log('Service instance: ',result);
+})
+```
+
+
+### GATT Utils
+
+#### getBatteryLevel$ <a name="get_battery_level"></a>
+The Battery Level characteristic is read using the GATT Read Characteristic
+Value sub-procedure and returns the current battery level as a percentage
+from 0% to 100%; 0% represents a battery that is fully discharged, 100% 
+represents a battery that is fully charged
+
+```javascript
+this.bluetoothService.getBatteryLevel$().subscribe(res => {
+      this.batteryLevel = res+"";
+    })
+```
+
+#### getManufacturerName$ <a name="get_manufacturer_name"></a>
+This characteristic represents the name of the manufacturer of the device.
+```javascript
+this.bluetoothService.getManufacturerName$().subscribe(res => {
+      this.manufacturerName = res;      
+    });
+```
+
+#### getModelNumber$ <a name="get_model_number"></a>
+This characteristic represents the model number that is assigned by the device vendor.
+```javascript
+this.bluetoothService.getModelNumber$().subscribe(res => {
+      this.modelNumber = res;
+    });
+```
+
+#### getSerialNumber$ <a name="get_serial_number"></a>
+This characteristic represents the serial number for a particular instance of the device.
+```javascript
+getSerialNumber() {
+    this.bluetoothService.getSerialNumber$().subscribe(res => {
+      this.serialNumber = res;
+    });
+  }
+```
+
+#### getHardwareRevision$ <a name="get_hardware_revision"></a>
+This characteristic represents the hardware revision for the hardware within the device.
+```javascript
+getHardwareRevision() {
+    this.bluetoothService.getHardwareRevision$().subscribe(res => {
+      this.hardwareRevision = res;
+    });
+  }
+```
+
+#### getFirmwareRevision$ <a name="get_firmware_revision"></a>
+This characteristic represents the firmware revision for the firmware within the device.
+```javascript
+getFirmwareRevision() {
+    this.bluetoothService.getFirmwareRevision$().subscribe(res => {
+      this.firmwareRevision = res;
+    });
+  }
+```
+
+#### getSoftwareRevision$ <a name="get_software_revision"></a>
+This characteristic represents the software revision for the software within the device.
+```javascript
+getSoftwareRevision() {
+    this.bluetoothService.getSoftwareRevision$().subscribe(res => {
+      this.softwareRevision = res;
+    });
+  }
+```
+
+#### getSystemId$ <a name="get_system_id"></a>
+This characteristic represents a structure containing an Organizationally Unique Identifier (OUI) followed by a manufacturer-defined identifier and is unique for each individual instance of the product.
+```javascript
+getSystemId() {
+    this.bluetoothService.getSystemId$().subscribe(res => {
+      this.systemId = res+"";
+    });
+  }
+```
+
+#### getPnpId$ <a name="get_pnp_id"></a>
+The PnP_ID characteristic is a set of values used to create a device ID value that is unique for this device.
+```javascript
+getPnpId() {
+    this.bluetoothService.getPnpId$().subscribe(res => {
+      this.pnpId = res+"";
+    });
+  }
+```

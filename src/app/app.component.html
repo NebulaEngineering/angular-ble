@@ -1,3 +1,4 @@
+<h1>AES Cypher: </h1>
 <h2>Value to encrypt: </h2>
 <input name="name" [(ngModel)]="valueToEncrypt">
 <p>Hex value: {{encryptedHex}}</p>
@@ -10,3 +11,30 @@
 <p>byte value: {{decryptedBytes}}</p>
 <p>text value: {{decryptedText}}</p>
 <button (click)="decryptValue()" >decrypt</button>
+
+<h1>Bluetooth: </h1>
+<p>Device connected: {{deviceConnected}}</p>
+<button (click)="connectToDevice()" >connectToDevice</button> 
+<button (click)="disconnectToDevice()" >disconnectToDevice</button>
+<h2>Battery service: </h2>
+<p>Battery level: {{batteryLevel}}</p>
+<button (click)="getBatteryLevel()" >getBatteryLevel</button>
+<h2>Device information: </h2>
+<p>manufacturer name: {{manufacturerName}}</p>
+<button (click)="getManufacturerName()" >getManufacturerName</button>
+<p>model number: {{modelNumber}}</p>
+<button (click)="getModelNumber()" >getModelNumber</button>
+<p>serial number: {{serialNumber}}</p>
+<button (click)="getSerialNumber()" >getSerialNumber</button>
+<p>hardware revision: {{hardwareRevision}}</p>
+<button (click)="getHardwareRevision()" >getHardwareRevision</button>
+<p>Firmware revision: {{firmwareRevision}}</p>
+<button (click)="getFirmwareRevision()" >getFirmwareRevision</button>
+<p>software revision: {{softwareRevision}}</p>
+<button (click)="getSoftwareRevision()" >getSoftwareRevision</button>
+<p>system id: {{systemId}}</p>
+<button (click)="getSystemId()" >getSystemId</button>
+<p>pnpId: {{pnpId}}</p>
+<button (click)="getPnpId()" >getPnpId</button>
+<p></p>
+<button (click)="startNotifier()" >startNotifier</button>
