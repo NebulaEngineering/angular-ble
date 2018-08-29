@@ -47,27 +47,26 @@ export class BluetoothService extends Subject<BluetoothService> {
    * @return {DataView} a DataView than contains the characteristic value
    */
   startNotifierListener$(service, characteristic): Observable<DataView> {
-    if (this.device) {
-      return this.getPrimaryService$(service).pipe(
-        mergeMap(primaryService =>
-          this.getCharacteristic$(primaryService, characteristic)
-        ),
-        mergeMap((char: BluetoothRemoteGATTCharacteristic) => {
-          return fromEvent(char, 'characteristicvaluechanged').pipe(
-            takeUntil(fromEvent(char, 'gattserverdisconnected')),
-            map(
-              (event: Event) =>
-                (event.target as BluetoothRemoteGATTCharacteristic)
-                  .value as DataView
-            )
-          );
-        })
-      );
-    } else {
+    if (!this.device) {
       throw new Error(
         'Must start a connection to a device before read the device value'
       );
     }
+    return this.getPrimaryService$(service).pipe(
+      mergeMap(primaryService =>
+        this.getCharacteristic$(primaryService, characteristic)
+      ),
+      mergeMap((char: BluetoothRemoteGATTCharacteristic) => {
+        return fromEvent(char, 'characteristicvaluechanged').pipe(
+          takeUntil(fromEvent(char, 'gattserverdisconnected')),
+          map(
+            (event: Event) =>
+              (event.target as BluetoothRemoteGATTCharacteristic)
+                .value as DataView
+          )
+        );
+      })
+    );
   }
   /**
    * Start a request to the browser to list all available bluetooth devices
@@ -107,17 +106,14 @@ export class BluetoothService extends Subject<BluetoothService> {
     if (!options) {
       options = {
         acceptAllDevices: true,
-        optionalServices: [
-          GattServices.GENERIC_ACCESS.SERVICE,
-          GattServices.BATTERY.SERVICE,
-          GattServices.DEVICE_INFORMATION.SERVICE
-        ]
+        optionalServices: []
       };
-    } else {
-      options.optionalServices.push(GattServices.GENERIC_ACCESS.SERVICE);
-      options.optionalServices.push(GattServices.BATTERY.SERVICE);
-      options.optionalServices.push(GattServices.DEVICE_INFORMATION.SERVICE);
+    } else if (!options.optionalServices) {
+      options.optionalServices = [];
     }
+    options.optionalServices.push(GattServices.GENERIC_ACCESS.SERVICE);
+    options.optionalServices.push(GattServices.BATTERY.SERVICE);
+    options.optionalServices.push(GattServices.DEVICE_INFORMATION.SERVICE);
     return this.discoverDevice$(options).pipe(
       mergeMap(device => {
         return defer(() => device.gatt.connect());
@@ -146,20 +142,19 @@ export class BluetoothService extends Subject<BluetoothService> {
    * @return The characteristic data in a DataView object
    */
   readDeviceValue$(service, characteristic) {
-    if (this.device) {
-      return this.getPrimaryService$(service).pipe(
-        mergeMap(primaryService =>
-          this.getCharacteristic$(primaryService, characteristic)
-        ),
-        mergeMap((characteristicValue: BluetoothRemoteGATTCharacteristic) =>
-          this.readValue$(characteristicValue)
-        )
-      );
-    } else {
+    if (!this.device) {
       throw new Error(
         'Must start a connection to a device before read the device value'
       );
     }
+    return this.getPrimaryService$(service).pipe(
+      mergeMap(primaryService =>
+        this.getCharacteristic$(primaryService, characteristic)
+      ),
+      mergeMap((characteristicValue: BluetoothRemoteGATTCharacteristic) =>
+        this.readValue$(characteristicValue)
+      )
+    );
   }
 
   /**
@@ -168,20 +163,19 @@ export class BluetoothService extends Subject<BluetoothService> {
    * @param {DataView|Uint8Array|Uint16Array|Uint32Array} value the value to write
    */
   writeDeviceValue$(service, characteristic, value) {
-    if (this.device) {
-      return this.getPrimaryService$(service).pipe(
-        mergeMap(primaryService =>
-          this.getCharacteristic$(primaryService, characteristic)
-        ),
-        mergeMap((characteristicValue: BluetoothRemoteGATTCharacteristic) =>
-          this.writeValue$(characteristicValue, value)
-        )
-      );
-    } else {
+    if (!this.device) {
       throw new Error(
         'Must start a connection to a device before read the device value'
       );
     }
+    return this.getPrimaryService$(service).pipe(
+      mergeMap(primaryService =>
+        this.getCharacteristic$(primaryService, characteristic)
+      ),
+      mergeMap((characteristicValue: BluetoothRemoteGATTCharacteristic) =>
+        this.writeValue$(characteristicValue, value)
+      )
+    );
   }
 
   /**
@@ -321,9 +315,7 @@ export class BluetoothService extends Subject<BluetoothService> {
             message = message.slice(16, message.length);
           }
           if (message.length > 0) {
-            obsTest = obsTest.pipe(
-              concat(this.writeValue$(char, message))
-            );
+            obsTest = obsTest.pipe(concat(this.writeValue$(char, message)));
           }
           return obsTest;
         } else {
