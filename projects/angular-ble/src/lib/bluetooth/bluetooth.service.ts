@@ -35,16 +35,16 @@ export class BluetoothService extends Subject<BluetoothService> {
   }
   /**
    * get the current device, if the device return null is because the connection has lost
-   * @returns {BluetoothDevice} the current connceted device
+   * @returns BluetoothDevice the current connceted device
    */
   getDevice$(): Observable<BluetoothDevice> {
     return this._device$;
   }
   /**
    * start a stream by notifiers characteristics
-   * @param {String} service The service to which the characteristic belongs
-   * @param {String} characteristic The characteristic whose value you want to listen
-   * @return {DataView} a DataView than contains the characteristic value
+   * @param String service The service to which the characteristic belongs
+   * @param String characteristic The characteristic whose value you want to listen
+   * @returns DataView a DataView than contains the characteristic value
    */
   startNotifierListener$(service, characteristic): Observable<DataView> {
     if (this.device) {
