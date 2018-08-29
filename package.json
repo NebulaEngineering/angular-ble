@@ -8,10 +8,23 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
-    "build_lib": "ng build --prod angular-ble",
+    "build_lib": "ng build --prod @nebulae/angular-ble",
     "npm_pack": "cd dist/angular-ble && npm pack",
     "package": "npm run build_lib && npm run npm_pack"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NebulaEngineering/angular-ble"
+  },
+  "keywords": [
+    "NebulaE",
+    "ble",
+    "tools",
+    "angular"
+  ],
+  "license": "MIT",
+  "author": "daniel.tobon@nebulae.com.co",
+  "homepage": "https://github.com/NebulaEngineering/angular-ble#readme",
   "private": true,
   "dependencies": {
     "@angular/animations": "^6.1.3",
