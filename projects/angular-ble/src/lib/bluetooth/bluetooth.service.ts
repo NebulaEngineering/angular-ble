@@ -35,7 +35,7 @@ export class BluetoothService extends Subject<BluetoothService> {
   }
   /**
    * get the current device, if the device return null is because the connection has lost
-   * @returns BluetoothDevice the current connceted device
+   * @returns the current connceted device
    */
   getDevice$(): Observable<BluetoothDevice> {
     return this._device$;
@@ -44,7 +44,7 @@ export class BluetoothService extends Subject<BluetoothService> {
    * start a stream by notifiers characteristics
    * @param String service The service to which the characteristic belongs
    * @param String characteristic The characteristic whose value you want to listen
-   * @returns DataView a DataView than contains the characteristic value
+   * @returns A DataView than contains the characteristic value
    */
   startNotifierListener$(service, characteristic): Observable<DataView> {
     if (!this.device) {
@@ -70,7 +70,7 @@ export class BluetoothService extends Subject<BluetoothService> {
   }
   /**
    * Start a request to the browser to list all available bluetooth devices
-   * @param {RequestDeviceOptions} options Options to request the devices the structure is:
+   * @param RequestDeviceOptions options Options to request the devices the structure is:
    * acceptAllDevices: true|false
    * filters: BluetoothDataFilterInit (see https://webbluetoothcg.github.io/web-bluetooth/#dictdef-bluetoothlescanfilterinit for more info)
    * optionalServices: [] (services that are going to be used in
@@ -95,12 +95,12 @@ export class BluetoothService extends Subject<BluetoothService> {
   }
   /**
    * Discover all available devices and connect to a selected device
-   * @param {RequestDeviceOptions} options Options to request the devices the structure is:
+   * @param RequestDeviceOptions options Options to request the devices the structure is:
    * acceptAllDevices: true|false
    * filters: BluetoothDataFilterInit (see https://webbluetoothcg.github.io/web-bluetooth/#dictdef-bluetoothlescanfilterinit for more info)
    * optionalServices: [] (services that are going to be used in
    * communication with the device, must use the UIID or GATT identfier to list ther services)
-   * @returns {BluetoothDevice} the connected device
+   * @returns the connected device
    */
   connectDevice$(options?: RequestDeviceOptions) {
     if (!options) {
@@ -137,8 +137,8 @@ export class BluetoothService extends Subject<BluetoothService> {
   }
   /**
    * get a data from the device using the characteristic
-   * @param {String} service UUID or GATT identifier service
-   * @param {String} characteristic UUID or GATT identifier characteristic
+   * @param service UUID or GATT identifier service
+   * @param characteristic UUID or GATT identifier characteristic
    * @return The characteristic data in a DataView object
    */
   readDeviceValue$(service, characteristic) {
@@ -159,8 +159,8 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * write a value in the selected characteristic
-   * @param {String} characteristic the characterisitc where you want write the value
-   * @param {DataView|Uint8Array|Uint16Array|Uint32Array} value the value to write
+   * @param characteristic the characterisitc where you want write the value
+   * @param Uint8Array value the value to write
    */
   writeDeviceValue$(service, characteristic, value) {
     if (!this.device) {
@@ -180,8 +180,8 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * get a primary service instance using the service UIID or GATT identifier
-   * @param {String} service service identifier
-   * @return {BluetoothRemoteGATTService} service instance
+   * @param String service service identifier
+   * @return service instance
    */
   getPrimaryService$(service: BluetoothServiceUUID) {
     return of(this.device).pipe(
@@ -193,9 +193,9 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * Get a characterisitic instance using the service instance and a characteristic UUID
-   * @param {BluetoothRemoteGATTService} primaryService service instance
-   * @param {String} characteristic characterisitic identifier
-   * @return {BluetoothRemoteGATTCharacteristic} characteristic instance
+   * @param BluetoothRemoteGATTService primaryService service instance
+   * @param String characteristic characterisitic identifier
+   * @return characteristic instance
    */
   getCharacteristic$(
     primaryService: BluetoothRemoteGATTService,
@@ -206,8 +206,8 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * read the characteristic value
-   * @param {BluetoothRemoteGATTCharacteristic} characteristic characteristic instance
-   * @return {DataView} The characteristic data in a DataView object
+   * @param BluetoothRemoteGATTCharacteristic characteristic characteristic instance
+   * @return The characteristic data in a DataView object
    */
   private readValue$(
     characteristic: BluetoothRemoteGATTCharacteristic
@@ -224,8 +224,8 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * write a value in the selected characteristic
-   * @param {BluetoothRemoteGATTCharacteristic} characteristic the characterisitc where you want write the value
-   * @param {DataView|Uint8Array|Uint16Array|Uint32Array} value the value to write
+   * @param BluetoothRemoteGATTCharacteristic characteristic the characterisitc where you want write the value
+   * @param DataView value the value to write
    */
   private writeValue$(
     characteristic: BluetoothRemoteGATTCharacteristic,
@@ -243,9 +243,9 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * change the state of the characteristic to enable it
-   * @param {String} service  parent service of the characteristic
-   * @param {String} characteristic characteristic to change the state
-   * @param {Uint8Array|Uint16Array|Uint32Array} state new state
+   * @param String service  parent service of the characteristic
+   * @param String characteristic characteristic to change the state
+   * @param Uint8Array state new state
    */
   enableCharacteristic$(
     service: BluetoothServiceUUID,
@@ -258,9 +258,9 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * change the state of the characteristic to disable it
-   * @param {String} service  parent service of the characteristic
-   * @param {String} characteristic characteristic to change the state
-   * @param {Uint8Array|Uint16Array|Uint32Array} state new state
+   * @param String service  parent service of the characteristic
+   * @param String characteristic characteristic to change the state
+   * @param Uint8Array state new state
    */
   disbaleCharacteristic$(
     service: BluetoothServiceUUID,
@@ -273,9 +273,9 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * set a state to an specific characteristic
-   * @param {String} service  parent service of the characteristic
-   * @param {String} characteristic characteristic to change the state
-   * @param {Uint8Array|Uint16Array|Uint32Array} state new state
+   * @param String service  parent service of the characteristic
+   * @param String characteristic characteristic to change the state
+   * @param Uint8Array state new state
    * @return
    */
   setCharacteristicState$(
@@ -296,9 +296,9 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * Send a message using a notifier characteristic
-   * @param {Uint8Array|Uint16Array|Uint32Array} message message to send
-   * @param {String} service service to which the characteristic belongs
-   * @param {String} characteristic feature in which you want to send the notification
+   * @param Uint8Array message message to send
+   * @param String service service to which the characteristic belongs
+   * @param String characteristic feature in which you want to send the notification
    */
   sendToNotifier$(message, service, characteristic) {
     return this.getPrimaryService$(service).pipe(
