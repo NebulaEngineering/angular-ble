@@ -8,7 +8,7 @@
     "test": "ng test",
     "lint": "ng lint",
     "e2e": "ng e2e",
-    "build_lib": "ng build --prod @nebulae/angular-ble",
+    "build_lib": "ng build --prod angular-ble",
     "npm_pack": "cd dist/angular-ble && npm pack",
     "package": "npm run build_lib && npm run npm_pack"
   },

@@ -62,7 +62,12 @@ npm install @nebulae/angular-ble
 
 ## Use it
 
-- Import the `AngularBleModule` module
+- Be sure you already have install `@types/web-bluetooth` and `aes-js`, if already not installed, execute the next commands
+```
+npm install @types/web-bluetooth
+npm install aes-js
+```
+Import the `AngularBleModule` in your module
 
 ```javascript
 import { NgModule } from '@angular/core';
@@ -73,7 +78,7 @@ import { AppComponent } from './app.component';
 @NgModule({
   imports: [
     //...,
-    AngularBleModule
+    AngularBleModule.forRoot()
   ]
   //...,
 })
@@ -139,7 +144,7 @@ export class AppModule {}
   }
   ```
 
-  - Use Bluetooth BLE in your service/component
+- Use Bluetooth BLE in your service/component
 
   here is an annotated example using the `@nebulae/angular-ble` bluetooth service
 ```javascript

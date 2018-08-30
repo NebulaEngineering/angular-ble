@@ -1,6 +1,36 @@
 {
   "name": "@nebulae/angular-ble",
-  "version": "0.0.4",
+  "version": "0.0.5",
+  "license": "MIT",
+  "author": {
+    "name": "Daniel Tobon",
+    "email": "daniel.tobon@nebulae.com.co"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@https://github.com/NebulaEngineering/angular-ble"
+  },
+  "homepage": "https://github.com/NebulaEngineering/angular-ble#readme",
+  "bugs": "https://github.com/NebulaEngineering/angular-ble/issues",
+  "description": "A Web Bluetooth (Bluetooth Low Energy) module for angular (v2+)",
+  "keywords": [
+    "NebulaE",
+    "angular",
+    "angular2",
+    "bluetooth",
+    "low",
+    "energy",
+    "web",
+    "ble",
+    "iot",
+    "sensor",
+    "ir",
+    "nfc",
+    "thermometer",
+    "puckjs",
+    "sensortag"
+  ],
+  "private": false,
   "peerDependencies": {
     "@angular/common": "^6.0.0-rc.0 || ^6.0.0",
     "@angular/core": "^6.0.0-rc.0 || ^6.0.0",

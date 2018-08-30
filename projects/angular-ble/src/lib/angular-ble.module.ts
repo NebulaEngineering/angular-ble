@@ -1,19 +1,27 @@
-import { NgModule } from '@angular/core';
-import { AngularBleComponent } from './angular-ble.component';
+import { NgModule, ModuleWithProviders  } from '@angular/core';
 import { BrowserWebBluetooth } from './platform/browser';
+import { CommonModule } from '@angular/common';
+import { BluetoothService } from './bluetooth/bluetooth.service';
 
 export function browserWebBluetooth() {
   return new BrowserWebBluetooth();
 }
 
+
 @NgModule({
-  declarations: [AngularBleComponent],
-  providers: [
-    {
-      provide: BrowserWebBluetooth,
-      useFactory: browserWebBluetooth
-    }
-  ],
-  exports: [AngularBleComponent]
+  imports: [CommonModule]
 })
-export class AngularBleModule { }
+export class AngularBleModule {
+  static forRoot(): ModuleWithProviders {
+    return {
+      ngModule: AngularBleModule,
+      providers: [
+        BluetoothService,
+        {
+          provide: BrowserWebBluetooth,
+          useFactory: browserWebBluetooth
+        }
+      ]
+    };
+  }
+}
