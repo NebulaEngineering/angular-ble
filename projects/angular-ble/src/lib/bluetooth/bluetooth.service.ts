@@ -57,13 +57,19 @@ export class BluetoothService extends Subject<BluetoothService> {
         this.getCharacteristic$(primaryService, characteristic)
       ),
       mergeMap((char: BluetoothRemoteGATTCharacteristic) => {
-        return fromEvent(char, 'characteristicvaluechanged').pipe(
-          takeUntil(fromEvent(char, 'gattserverdisconnected')),
-          map(
-            (event: Event) =>
-              (event.target as BluetoothRemoteGATTCharacteristic)
-                .value as DataView
-          )
+        return defer(() => {
+          return char.startNotifications();
+        }).pipe(
+          mergeMap(_ => {
+          return fromEvent(char, 'characteristicvaluechanged').pipe(
+            takeUntil(fromEvent(char, 'gattserverdisconnected')),
+            map(
+              (event: Event) =>
+                (event.target as BluetoothRemoteGATTCharacteristic)
+                  .value as DataView
+            )
+          );
+          })
         );
       })
     );
