@@ -5,7 +5,12 @@ import {
   concat,
   mapTo,
   filter,
-  takeUntil
+  takeUntil,
+  bufferToggle,
+  scan,
+  tap,
+  take,
+  timeout
 } from 'rxjs/operators';
 import {
   Observable,
@@ -14,7 +19,8 @@ import {
   defer,
   fromEvent,
   of,
-  from
+  from,
+  interval
 } from 'rxjs';
 import { GattServices } from './gatt-services';
 import { BrowserWebBluetooth } from '../platform/browser';
@@ -26,6 +32,8 @@ import { CypherAesService } from '../cypher/cypher-aes.service';
 export class BluetoothService extends Subject<BluetoothService> {
   public _device$: EventEmitter<BluetoothDevice>;
   private device: BluetoothDevice;
+  private notifierListenerVsSubscriber = {};
+  private notifierSubject = new Subject();
   constructor(
     public _webBle: BrowserWebBluetooth,
     private cypherAesService: CypherAesService
@@ -42,41 +50,225 @@ export class BluetoothService extends Subject<BluetoothService> {
   }
   /**
    * start a stream by notifiers characteristics
-   * @param String service The service to which the characteristic belongs
-   * @param String characteristic The characteristic whose value you want to listen
+   * @param service The service to which the characteristic belongs
+   * @param characteristic The characteristic whose value you want to listen
+   * @param options object that contains the
+   * startByte:number (required), stopByte:number (required),
+   * lengthPosition: { start: number, end: number, lengthPadding: number } (required)
    * @returns A DataView than contains the characteristic value
    */
-  startNotifierListener$(service, characteristic): Observable<DataView> {
-    if (!this.device) {
-      throw new Error(
-        'Must start a connection to a device before read the device value'
-      );
-    }
-    return this.getPrimaryService$(service).pipe(
-      mergeMap(primaryService =>
-        this.getCharacteristic$(primaryService, characteristic)
-      ),
-      mergeMap((char: BluetoothRemoteGATTCharacteristic) => {
-        return defer(() => {
-          return char.startNotifications();
-        }).pipe(
-          mergeMap(_ => {
-          return fromEvent(char, 'characteristicvaluechanged').pipe(
-            takeUntil(fromEvent(char, 'gattserverdisconnected')),
-            map(
-              (event: Event) =>
-                (event.target as BluetoothRemoteGATTCharacteristic)
-                  .value as DataView
-            )
+  startNotifierListener$(service, characteristic, options) {
+    return of(service).pipe(
+      map(serviceUiid => {
+        // checks are a valid device connection
+        if (!this.device) {
+          throw new Error(
+            'Must start a connection to a device before read the device value'
           );
-          })
-        );
+        }
+        if (
+          !options ||
+          !options.startByte ||
+          !options.stopByte ||
+          !options.lengthPosition
+        ) {
+          throw new Error(
+            'invalid options object, Sample: {startByte: 0x01, stopByte: 0x03, messageType: 0x45, lengthPosition: { start: 0, end: 0 } }'
+          );
+        }
+        return this.getPrimaryService$(serviceUiid)
+          .pipe(
+            mergeMap(primaryService =>
+              this.getCharacteristic$(primaryService, characteristic)
+            ),
+            mergeMap((char: BluetoothRemoteGATTCharacteristic) => {
+              return defer(() => {
+                // enable the characteristic notifier
+                return char.startNotifications();
+              }).pipe(
+                mergeMap(_ => {
+                  // start the lister from the even characteristicvaluechanged to get all changes on the specific
+                  // characteristic
+                  return fromEvent(char, 'characteristicvaluechanged').pipe(
+                    takeUntil(fromEvent(char, 'gattserverdisconnected')),
+                    map((event: Event) => {
+                      // get a event from the characteristic and map that
+                      return {
+                        startByteMatches: false,
+                        stopByteMatches: false,
+                        lengthMatches: false,
+                        messageLength: 0,
+                        data: Array.from(
+                          new Uint8Array(
+                            ((event.target as BluetoothRemoteGATTCharacteristic)
+                              .value as DataView).buffer
+                          )
+                        )
+                      };
+                    }),
+                    scan(
+                      (acc, value) => {
+                        // if the current accumulator value is a valid message, then is restarted to get the next
+                        // message
+                        if (
+                          acc.lengthMatches &&
+                          acc.startByteMatches &&
+                          acc.stopByteMatches
+                        ) {
+                          acc = {
+                            startByteMatches: false,
+                            stopByteMatches: false,
+                            lengthMatches: false,
+                            messageLength: 0,
+                            data: []
+                          };
+                        }
+                        // validate the start byte
+                        if (
+                          !acc.startByteMatches &&
+                          value.data[0] === options.startByte
+                        ) {
+                          // get the message length using the start and end position
+                          acc.messageLength =
+                            new DataView(
+                              new Uint8Array(
+                                value.data.slice(
+                                  options.lengthPosition.start,
+                                  options.lengthPosition.end
+                                )
+                              ).buffer
+                            ).getInt16(0, false) +
+                            (options.lengthPosition.lengthPadding
+                              ? options.lengthPosition.lengthPadding
+                              : 0);
+                          // valid that the initial byte was found
+                          acc.startByteMatches = true;
+                        }
+                        if (
+                          !acc.stopByteMatches &&
+                          value.data[value.data.length - 1] === options.stopByte
+                        ) {
+                          // valid that the end byte was found
+                          acc.stopByteMatches = true;
+                        }
+                        // merge the new data bytes to the old bytes
+                        acc.data = acc.data.concat(value.data);
+                        acc.lengthMatches =
+                          acc.startByteMatches &&
+                          acc.stopByteMatches &&
+                          acc.messageLength === acc.data.length;
+                        return acc;
+                      },
+                      {
+                        startByteMatches: false,
+                        stopByteMatches: false,
+                        lengthMatches: false,
+                        messageLength: 0,
+                        data: []
+                      }
+                    ),
+                    // only publish the complete and valid message
+                    filter(
+                      data =>
+                        data.lengthMatches &&
+                        data.startByteMatches &&
+                        data.stopByteMatches
+                    ),
+                    // remove all custom data and publish the message data
+                    map(result => result.data)
+                  );
+                })
+              );
+            })
+          )
+          .subscribe(message => {
+            this.notifierSubject.next(message);
+          });
+      }),
+      // asociate the subscription to the characteristic
+      map(sub => {
+        const characterisitcVsSubscriber = {};
+        characterisitcVsSubscriber[characteristic] = sub;
+        return characterisitcVsSubscriber;
+      }),
+      // asociate the characteristic to the service
+      map(charVsSub => {
+        this.notifierListenerVsSubscriber[service] = charVsSub;
+        return `notifier as subscribed: service= ${service}, characteristic= ${characteristic}`;
       })
     );
   }
   /**
+   * Send a request to the device and wait a unique response
+   * @param message Message to send
+   * @param service The service to which the characteristic belongs
+   * @param characteristic The characteristic whose value you want to send the message
+   * @param responseType filter to use to identify the response, Sample: [{position: 3, byteToMatch: 0x83},
+   *  {position: 13, byteToMatch: 0x45}]
+   * @param cypherMasterKey master key to decrypt the message, only use this para if the message to receive is encrypted
+   */
+  sendAndWaitResponse$(
+    message,
+    service,
+    characteristic,
+    responseType,
+    cypherMasterKey?
+  ) {
+    return forkJoin(
+      this.subscribeToNotifierListener(responseType, cypherMasterKey).pipe(
+        take(1)
+      ),
+      this.sendToNotifier$(message, service, characteristic)
+    ).pipe(
+      map(([messageResp, _]) => messageResp),
+      timeout(2000)
+    );
+  }
+  /**
+   * Subscribe to the notifiers filtering by byte checking
+   * @param filterOptions must specific the position and the byte to match Sample:
+   * [{position: 3, byteToMatch: 0x83}, {position: 13, byteToMatch: 0x45}]
+   * @param cypherMasterKey master key to decrypt the message, only use this para if the message to receive is encrypted
+   */
+  subscribeToNotifierListener(filterOptions, cypherMasterKey?) {
+    return this.notifierSubject.asObservable().pipe(
+      map(messageUnformated => {
+        let messageFormmated = messageUnformated as any;
+        if (cypherMasterKey) {
+          const datablockLength = new DataView(
+            new Uint8Array(messageFormmated.slice(1, 3)).buffer
+          ).getInt16(0, false);
+          this.cypherAesService.config(cypherMasterKey);
+          const datablock = Array.from(
+            this.cypherAesService.decrypt(
+              (messageUnformated as any).slice(3, datablockLength + 3)
+            )
+          );
+          messageFormmated = (messageUnformated as any)
+            .slice(0, 3)
+            .concat(datablock)
+            .concat((messageUnformated as any).slice(-2));
+        }
+        return messageFormmated;
+      }),
+      filter(message => {
+        let availableMessage = false;
+        for (const option of filterOptions) {
+          if (message[option.position] === option.byteToMatch) {
+            availableMessage = true;
+          } else {
+            availableMessage = false;
+            break;
+          }
+        }
+        return availableMessage;
+      })
+    );
+  }
+
+  /**
    * Start a request to the browser to list all available bluetooth devices
-   * @param RequestDeviceOptions options Options to request the devices the structure is:
+   * @param options Options to request the devices the structure is:
    * acceptAllDevices: true|false
    * filters: BluetoothDataFilterInit (see https://webbluetoothcg.github.io/web-bluetooth/#dictdef-bluetoothlescanfilterinit for more info)
    * optionalServices: [] (services that are going to be used in
@@ -101,7 +293,7 @@ export class BluetoothService extends Subject<BluetoothService> {
   }
   /**
    * Discover all available devices and connect to a selected device
-   * @param RequestDeviceOptions options Options to request the devices the structure is:
+   * @param options Options to request the devices the structure is:
    * acceptAllDevices: true|false
    * filters: BluetoothDataFilterInit (see https://webbluetoothcg.github.io/web-bluetooth/#dictdef-bluetoothlescanfilterinit for more info)
    * optionalServices: [] (services that are going to be used in
@@ -166,7 +358,7 @@ export class BluetoothService extends Subject<BluetoothService> {
   /**
    * write a value in the selected characteristic
    * @param characteristic the characterisitc where you want write the value
-   * @param Uint8Array value the value to write
+   * @param value value the value to write
    */
   writeDeviceValue$(service, characteristic, value) {
     if (!this.device) {
@@ -186,7 +378,7 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * get a primary service instance using the service UIID or GATT identifier
-   * @param String service service identifier
+   * @param service service identifier
    * @return service instance
    */
   getPrimaryService$(service: BluetoothServiceUUID) {
@@ -199,8 +391,8 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * Get a characterisitic instance using the service instance and a characteristic UUID
-   * @param BluetoothRemoteGATTService primaryService service instance
-   * @param String characteristic characterisitic identifier
+   * @param primaryService service instance
+   * @param characteristic characterisitic identifier
    * @return characteristic instance
    */
   getCharacteristic$(
@@ -212,7 +404,7 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * read the characteristic value
-   * @param BluetoothRemoteGATTCharacteristic characteristic characteristic instance
+   * @param characteristic characteristic instance
    * @return The characteristic data in a DataView object
    */
   private readValue$(
@@ -230,28 +422,24 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * write a value in the selected characteristic
-   * @param BluetoothRemoteGATTCharacteristic characteristic the characterisitc where you want write the value
-   * @param DataView value the value to write
+   * @param characteristic the characterisitc where you want write the value
+   * @param value the value to write
    */
   private writeValue$(
     characteristic: BluetoothRemoteGATTCharacteristic,
     value: ArrayBuffer | Uint8Array
   ) {
-    return from(
+    return defer(() =>
       characteristic
         .writeValue(value)
-        .then(
-          _ => Promise.resolve(),
-          (error: DOMException) => Promise.reject(`${error.message}`)
-        )
     );
   }
 
   /**
    * change the state of the characteristic to enable it
-   * @param String service  parent service of the characteristic
-   * @param String characteristic characteristic to change the state
-   * @param Uint8Array state new state
+   * @param service  parent service of the characteristic
+   * @param characteristic characteristic to change the state
+   * @param state new state
    */
   enableCharacteristic$(
     service: BluetoothServiceUUID,
@@ -264,9 +452,9 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * change the state of the characteristic to disable it
-   * @param String service  parent service of the characteristic
-   * @param String characteristic characteristic to change the state
-   * @param Uint8Array state new state
+   * @param service  parent service of the characteristic
+   * @param characteristic characteristic to change the state
+   * @param state new state
    */
   disbaleCharacteristic$(
     service: BluetoothServiceUUID,
@@ -279,9 +467,9 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * set a state to an specific characteristic
-   * @param String service  parent service of the characteristic
-   * @param String characteristic characteristic to change the state
-   * @param Uint8Array state new state
+   * @param service  parent service of the characteristic
+   * @param characteristic characteristic to change the state
+   * @param state new state
    * @return
    */
   setCharacteristicState$(
@@ -302,9 +490,9 @@ export class BluetoothService extends Subject<BluetoothService> {
 
   /**
    * Send a message using a notifier characteristic
-   * @param Uint8Array message message to send
-   * @param String service service to which the characteristic belongs
-   * @param String characteristic feature in which you want to send the notification
+   * @param message message to send
+   * @param service service to which the characteristic belongs
+   * @param characteristic feature in which you want to send the notification
    */
   sendToNotifier$(message, service, characteristic) {
     return this.getPrimaryService$(service).pipe(
