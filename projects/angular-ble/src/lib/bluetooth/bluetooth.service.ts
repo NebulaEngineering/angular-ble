@@ -25,6 +25,7 @@ import {
 import { GattServices } from './gatt-services';
 import { BrowserWebBluetooth } from '../platform/browser';
 import { CypherAesService } from '../cypher/cypher-aes.service';
+import { ConsoleLoggerService } from '../logger.service';
 
 @Injectable({
   providedIn: 'root'
@@ -36,7 +37,8 @@ export class BluetoothService extends Subject<BluetoothService> {
   private notifierSubject = new Subject();
   constructor(
     public _webBle: BrowserWebBluetooth,
-    private cypherAesService: CypherAesService
+    private cypherAesService: CypherAesService,
+    public _console: ConsoleLoggerService
   ) {
     super();
     this._device$ = new EventEmitter<BluetoothDevice>();
@@ -182,6 +184,10 @@ export class BluetoothService extends Subject<BluetoothService> {
             })
           )
           .subscribe(message => {
+            this._console.log(
+              '[BLE::Info] Notification reived from device: ',
+              this.cypherAesService.bytesTohex(message)
+            );
             this.notifierSubject.next(message);
           });
       }),
@@ -214,6 +220,10 @@ export class BluetoothService extends Subject<BluetoothService> {
     responseType,
     cypherMasterKey?
   ) {
+    this._console.log(
+      '[BLE::Info] Send message to device: ',
+      this.cypherAesService.bytesTohex(message)
+    );
     return forkJoin(
       this.subscribeToNotifierListener(responseType, cypherMasterKey).pipe(
         take(1)
@@ -322,7 +332,9 @@ export class BluetoothService extends Subject<BluetoothService> {
    * Disconnect the current device
    */
   disconnectDevice() {
-    this.device.gatt.disconnect();
+    if (this.device) {
+      this.device.gatt.disconnect();
+    }
   }
 
   /**
@@ -429,10 +441,7 @@ export class BluetoothService extends Subject<BluetoothService> {
     characteristic: BluetoothRemoteGATTCharacteristic,
     value: ArrayBuffer | Uint8Array
   ) {
-    return defer(() =>
-      characteristic
-        .writeValue(value)
-    );
+    return defer(() => characteristic.writeValue(value));
   }
 
   /**
