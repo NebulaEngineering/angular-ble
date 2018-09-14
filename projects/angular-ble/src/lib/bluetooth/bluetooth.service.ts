@@ -10,7 +10,9 @@ import {
   scan,
   tap,
   take,
-  timeout
+  timeout,
+  retryWhen,
+  delay
 } from 'rxjs/operators';
 import {
   Observable,
@@ -33,7 +35,7 @@ import { ConsoleLoggerService } from '../logger.service';
 export class BluetoothService extends Subject<BluetoothService> {
   public _device$: EventEmitter<BluetoothDevice>;
   private device: BluetoothDevice;
-  private notifierListenerVsSubscriber = {};
+  private serviceCharacteristicVsSubscriptionList = {};
   private notifierSubject = new Subject();
   constructor(
     public _webBle: BrowserWebBluetooth,
@@ -60,147 +62,175 @@ export class BluetoothService extends Subject<BluetoothService> {
    * @returns A DataView than contains the characteristic value
    */
   startNotifierListener$(service, characteristic, options) {
-    return of(service).pipe(
-      map(serviceUiid => {
-        // checks are a valid device connection
-        if (!this.device) {
-          throw new Error(
-            'Must start a connection to a device before read the device value'
-          );
-        }
-        if (
-          !options ||
-          !options.startByte ||
-          !options.stopByte ||
-          !options.lengthPosition
-        ) {
-          throw new Error(
-            'invalid options object, Sample: {startByte: 0x01, stopByte: 0x03, messageType: 0x45, lengthPosition: { start: 0, end: 0 } }'
-          );
-        }
-        return this.getPrimaryService$(serviceUiid)
-          .pipe(
-            mergeMap(primaryService =>
-              this.getCharacteristic$(primaryService, characteristic)
-            ),
-            mergeMap((char: BluetoothRemoteGATTCharacteristic) => {
-              return defer(() => {
-                // enable the characteristic notifier
-                return char.startNotifications();
-              }).pipe(
-                mergeMap(_ => {
-                  // start the lister from the even characteristicvaluechanged to get all changes on the specific
-                  // characteristic
-                  return fromEvent(char, 'characteristicvaluechanged').pipe(
-                    takeUntil(fromEvent(char, 'gattserverdisconnected')),
-                    map((event: Event) => {
-                      // get a event from the characteristic and map that
-                      return {
-                        startByteMatches: false,
-                        stopByteMatches: false,
-                        lengthMatches: false,
-                        messageLength: 0,
-                        data: Array.from(
-                          new Uint8Array(
-                            ((event.target as BluetoothRemoteGATTCharacteristic)
-                              .value as DataView).buffer
-                          )
-                        )
-                      };
-                    }),
-                    scan(
-                      (acc, value) => {
-                        // if the current accumulator value is a valid message, then is restarted to get the next
-                        // message
-                        if (
-                          acc.lengthMatches &&
-                          acc.startByteMatches &&
-                          acc.stopByteMatches
-                        ) {
-                          acc = {
-                            startByteMatches: false,
-                            stopByteMatches: false,
-                            lengthMatches: false,
-                            messageLength: 0,
-                            data: []
-                          };
-                        }
-                        // validate the start byte
-                        if (
-                          !acc.startByteMatches &&
-                          value.data[0] === options.startByte
-                        ) {
-                          // get the message length using the start and end position
-                          acc.messageLength =
-                            new DataView(
-                              new Uint8Array(
-                                value.data.slice(
-                                  options.lengthPosition.start,
-                                  options.lengthPosition.end
-                                )
-                              ).buffer
-                            ).getInt16(0, false) +
-                            (options.lengthPosition.lengthPadding
-                              ? options.lengthPosition.lengthPadding
-                              : 0);
-                          // valid that the initial byte was found
-                          acc.startByteMatches = true;
-                        }
-                        if (
-                          !acc.stopByteMatches &&
-                          value.data[value.data.length - 1] === options.stopByte
-                        ) {
-                          // valid that the end byte was found
-                          acc.stopByteMatches = true;
-                        }
-                        // merge the new data bytes to the old bytes
-                        acc.data = acc.data.concat(value.data);
-                        acc.lengthMatches =
-                          acc.startByteMatches &&
-                          acc.stopByteMatches &&
-                          acc.messageLength === acc.data.length;
-                        return acc;
-                      },
-                      {
-                        startByteMatches: false,
-                        stopByteMatches: false,
-                        lengthMatches: false,
-                        messageLength: 0,
-                        data: []
-                      }
-                    ),
-                    // only publish the complete and valid message
-                    filter(
-                      data =>
-                        data.lengthMatches &&
-                        data.startByteMatches &&
-                        data.stopByteMatches
-                    ),
-                    // remove all custom data and publish the message data
-                    map(result => result.data)
-                  );
-                })
-              );
-            })
+    return Observable.create(observer => {
+
+      const onSuccess = () => {
+        observer.next(
+          `notifier as subscribed: service= ${service}, characteristic= ${characteristic}`
+        );
+        observer.complete();
+      };
+
+      of(service)
+        .pipe(
+          tap(() => this._console.log('Inicia el notifier con la instancia: ', this.serviceCharacteristicVsSubscriptionList)),
+          filter(
+            _ =>
+              Object.keys(this.serviceCharacteristicVsSubscriptionList).indexOf(
+                `${service}-${characteristic}`
+              ) === -1
           )
-          .subscribe(message => {
-            this._console.log(
-              '[BLE::Info] Notification reived from device: ',
-              this.cypherAesService.bytesTohex(message)
+        )
+        .subscribe(
+          () => {
+            this.serviceCharacteristicVsSubscriptionList[`${service}-${characteristic}`] =
+              this.buildNotifierListener$(
+              service,
+              characteristic,
+              options,
+              onSuccess
+            ).subscribe(message => {
+              this.notifierSubject.next(message);
+              this._console.log(
+                '[BLE::Info] Notification reived from device: ',
+                this.cypherAesService.bytesTohex(message)
+              );
+            });
+
+          },
+          err => {
+            this._console.log('[BLE::Info] Error in notifier: ', err);
+            observer.error(err);
+          },
+          () => {}
+        );
+    });
+  }
+
+  stopNotifierListener$(service, characteristic) {
+    return defer(() => {
+      this.serviceCharacteristicVsSubscriptionList[`${service}-${characteristic}`].unsubscribe();
+      delete this.serviceCharacteristicVsSubscriptionList[`${service}-${characteristic}`];
+      return of(`the notifier of the characteristic ${characteristic} as been stopped`);
+    });
+  }
+
+  private buildNotifierListener$(service, characteristic, options, onSuccess) {
+    return this.getPrimaryService$(service).pipe(
+      tap(serviceInstance => this._console.log(`toma existosament el servicio ================> ${serviceInstance}`)),
+      mergeMap(primaryService =>
+        this.getCharacteristic$(primaryService, characteristic)
+        .pipe(tap(char => this._console.log(`toma existosamente la caracteristica ================> ${char}`)))
+      ),
+      mergeMap((char: BluetoothRemoteGATTCharacteristic) => {
+        return defer(() => {
+          // enable the characteristic notifier
+          return char.startNotifications();
+        }).pipe(
+          retryWhen(error =>
+            error.pipe(
+              tap(() => this._console.log('ERROR EN EL startNotifications ================> ')),
+              delay(1000),
+              take(5)
+            )
+          ),
+          tap(() => {
+            onSuccess();
+            this._console.log(`incia las notifiaciones de la caracteristica ================> ${characteristic}`);
+          }),
+          mergeMap(_ => {
+            // start the lister from the even characteristicvaluechanged to get all changes on the specific
+            // characteristic
+            return fromEvent(char, 'characteristicvaluechanged').pipe(
+              takeUntil(fromEvent(char, 'gattserverdisconnected')),
+              map((event: Event) => {
+                // get a event from the characteristic and map that
+                return {
+                  startByteMatches: false,
+                  stopByteMatches: false,
+                  lengthMatches: false,
+                  messageLength: 0,
+                  data: Array.from(
+                    new Uint8Array(
+                      ((event.target as BluetoothRemoteGATTCharacteristic)
+                        .value as DataView).buffer
+                    )
+                  )
+                };
+              }),
+              scan(
+                (acc, value) => {
+                  // if the current accumulator value is a valid message, then is restarted to get the next
+                  // message
+                  if (
+                    acc.lengthMatches &&
+                    acc.startByteMatches &&
+                    acc.stopByteMatches
+                  ) {
+                    acc = {
+                      startByteMatches: false,
+                      stopByteMatches: false,
+                      lengthMatches: false,
+                      messageLength: 0,
+                      data: []
+                    };
+                  }
+                  // validate the start byte
+                  if (
+                    !acc.startByteMatches &&
+                    value.data[0] === options.startByte
+                  ) {
+                    // get the message length using the start and end position
+                    acc.messageLength =
+                      new DataView(
+                        new Uint8Array(
+                          value.data.slice(
+                            options.lengthPosition.start,
+                            options.lengthPosition.end
+                          )
+                        ).buffer
+                      ).getInt16(0, false) +
+                      (options.lengthPosition.lengthPadding
+                        ? options.lengthPosition.lengthPadding
+                        : 0);
+                    // valid that the initial byte was found
+                    acc.startByteMatches = true;
+                  }
+                  if (
+                    !acc.stopByteMatches &&
+                    value.data[value.data.length - 1] === options.stopByte
+                  ) {
+                    // valid that the end byte was found
+                    acc.stopByteMatches = true;
+                  }
+                  // merge the new data bytes to the old bytes
+                  acc.data = acc.data.concat(value.data);
+                  acc.lengthMatches =
+                    acc.startByteMatches &&
+                    acc.stopByteMatches &&
+                    acc.messageLength === acc.data.length;
+                  return acc;
+                },
+                {
+                  startByteMatches: false,
+                  stopByteMatches: false,
+                  lengthMatches: false,
+                  messageLength: 0,
+                  data: []
+                }
+              ),
+              // only publish the complete and valid message
+              filter(
+                data =>
+                  data.lengthMatches &&
+                  data.startByteMatches &&
+                  data.stopByteMatches
+              ),
+              // remove all custom data and publish the message data
+              map(result => result.data)
             );
-            this.notifierSubject.next(message);
-          });
-      }),
-      // asociate the subscription to the characteristic
-      map(sub => {
-        const characterisitcVsSubscriber = {};
-        characterisitcVsSubscriber[characteristic] = sub;
-        return characterisitcVsSubscriber;
-      }),
-      // asociate the characteristic to the service
-      map(charVsSub => {
-        this.notifierListenerVsSubscriber[service] = charVsSub;
-        return `notifier as subscribed: service= ${service}, characteristic= ${characteristic}`;
+          })
+        );
       })
     );
   }
@@ -231,7 +261,7 @@ export class BluetoothService extends Subject<BluetoothService> {
       this.sendToNotifier$(message, service, characteristic)
     ).pipe(
       map(([messageResp, _]) => messageResp),
-      timeout(2000)
+      timeout(10000)
     );
   }
   /**
@@ -241,19 +271,24 @@ export class BluetoothService extends Subject<BluetoothService> {
    * @param cypherMasterKey master key to decrypt the message, only use this para if the message to receive is encrypted
    */
   subscribeToNotifierListener(filterOptions, cypherMasterKey?) {
-    return this.notifierSubject.asObservable().pipe(
+    return this.notifierSubject.pipe(
       map(messageUnformated => {
+        // receive the pure message
         let messageFormmated = messageUnformated as any;
+        // validate if the message is cyphered
         if (cypherMasterKey) {
+          // get the messageLength
           const datablockLength = new DataView(
             new Uint8Array(messageFormmated.slice(1, 3)).buffer
           ).getInt16(0, false);
           this.cypherAesService.config(cypherMasterKey);
+          // get the datablock of the message and decrypt this section
           const datablock = Array.from(
             this.cypherAesService.decrypt(
               (messageUnformated as any).slice(3, datablockLength + 3)
             )
           );
+          // merge the datablock and the message
           messageFormmated = (messageUnformated as any)
             .slice(0, 3)
             .concat(datablock)
@@ -261,6 +296,7 @@ export class BluetoothService extends Subject<BluetoothService> {
         }
         return messageFormmated;
       }),
+      // filter the message using the filter options
       filter(message => {
         let availableMessage = false;
         for (const option of filterOptions) {
@@ -333,6 +369,7 @@ export class BluetoothService extends Subject<BluetoothService> {
    */
   disconnectDevice() {
     if (this.device) {
+      this._console.log('se deconecta dispositivo');
       this.device.gatt.disconnect();
     }
   }
@@ -342,6 +379,7 @@ export class BluetoothService extends Subject<BluetoothService> {
    * @param event
    */
   private onDeviceDisconnected(event: Event) {
+    this._console.log('Se decsconecta disp en OnDevice disconnected');
     this.device = null;
     this._device$.emit(null);
   }
@@ -441,7 +479,10 @@ export class BluetoothService extends Subject<BluetoothService> {
     characteristic: BluetoothRemoteGATTCharacteristic,
     value: ArrayBuffer | Uint8Array
   ) {
-    return defer(() => characteristic.writeValue(value));
+    return defer(() =>
+      characteristic
+        .writeValue(value)
+    );
   }
 
   /**
