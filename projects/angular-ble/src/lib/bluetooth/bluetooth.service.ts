@@ -62,15 +62,7 @@ export class BluetoothService extends Subject<BluetoothService> {
    * @returns A DataView than contains the characteristic value
    */
   startNotifierListener$(service, characteristic, options) {
-    return Observable.create(observer => {
-
-      const onSuccess = () => {
-        observer.next(
-          `notifier as subscribed: service= ${service}, characteristic= ${characteristic}`
-        );
-        observer.complete();
-      };
-
+    return defer(() => {
       of(service)
         .pipe(
           tap(() => this._console.log('Inicia el notifier con la instancia: ', this.serviceCharacteristicVsSubscriptionList)),
@@ -85,42 +77,38 @@ export class BluetoothService extends Subject<BluetoothService> {
           () => {
             this.serviceCharacteristicVsSubscriptionList[`${service}-${characteristic}`] =
               this.buildNotifierListener$(
-              service,
-              characteristic,
-              options,
-              onSuccess
-            ).subscribe(message => {
-              this.notifierSubject.next(message);
-              this._console.log(
-                '[BLE::Info] Notification reived from device: ',
-                this.cypherAesService.bytesTohex(message)
-              );
-            });
+                service,
+                characteristic,
+                options
+              ).subscribe(message => {
+                this.notifierSubject.next(message);
+              });
 
           },
           err => {
             this._console.log('[BLE::Info] Error in notifier: ', err);
-            observer.error(err);
           },
-          () => {}
-        );
+          () => { }
+      );
+      return of(`notifier as subscribed: service= ${service}, characteristic= ${characteristic}`);
     });
+
   }
 
   stopNotifierListener$(service, characteristic) {
     return defer(() => {
-      this.serviceCharacteristicVsSubscriptionList[`${service}-${characteristic}`].unsubscribe();
+      // this.serviceCharacteristicVsSubscriptionList[`${service}-${characteristic}`].unsubscribe();
       delete this.serviceCharacteristicVsSubscriptionList[`${service}-${characteristic}`];
       return of(`the notifier of the characteristic ${characteristic} as been stopped`);
     });
   }
 
-  private buildNotifierListener$(service, characteristic, options, onSuccess) {
+  private buildNotifierListener$(service, characteristic, options) {
     return this.getPrimaryService$(service).pipe(
-      tap(serviceInstance => this._console.log(`toma existosament el servicio ================> ${serviceInstance}`)),
+      tap(serviceInstance => this._console.log(`toma exitosamente el servicio ================> ${serviceInstance}`)),
       mergeMap(primaryService =>
         this.getCharacteristic$(primaryService, characteristic)
-        .pipe(tap(char => this._console.log(`toma existosamente la caracteristica ================> ${char}`)))
+        .pipe(tap(char => this._console.log(`toma exitosamente la caracteristica ================> ${char}`)))
       ),
       mergeMap((char: BluetoothRemoteGATTCharacteristic) => {
         return defer(() => {
@@ -135,7 +123,6 @@ export class BluetoothService extends Subject<BluetoothService> {
             )
           ),
           tap(() => {
-            onSuccess();
             this._console.log(`incia las notifiaciones de la caracteristica ================> ${characteristic}`);
           }),
           mergeMap(_ => {
@@ -150,6 +137,7 @@ export class BluetoothService extends Subject<BluetoothService> {
                   stopByteMatches: false,
                   lengthMatches: false,
                   messageLength: 0,
+                  timestamp: Date.now(),
                   data: Array.from(
                     new Uint8Array(
                       ((event.target as BluetoothRemoteGATTCharacteristic)
@@ -160,18 +148,21 @@ export class BluetoothService extends Subject<BluetoothService> {
               }),
               scan(
                 (acc, value) => {
+                  acc.timestamp = acc.timestamp === 0 ? value.timestamp : acc.timestamp;
                   // if the current accumulator value is a valid message, then is restarted to get the next
                   // message
                   if (
-                    acc.lengthMatches &&
-                    acc.startByteMatches &&
-                    acc.stopByteMatches
+                    (acc.lengthMatches &&
+                      acc.startByteMatches &&
+                      acc.stopByteMatches)
+                    || acc.timestamp + 1000 < Date.now()
                   ) {
                     acc = {
                       startByteMatches: false,
                       stopByteMatches: false,
                       lengthMatches: false,
                       messageLength: 0,
+                      timestamp: 0,
                       data: []
                     };
                   }
@@ -203,8 +194,10 @@ export class BluetoothService extends Subject<BluetoothService> {
                     // valid that the end byte was found
                     acc.stopByteMatches = true;
                   }
-                  // merge the new data bytes to the old bytes
-                  acc.data = acc.data.concat(value.data);
+                  if (acc.startByteMatches) {
+                    // merge the new data bytes to the old bytes
+                    acc.data = acc.data.concat(value.data);
+                  }
                   acc.lengthMatches =
                     acc.startByteMatches &&
                     acc.stopByteMatches &&
@@ -216,6 +209,7 @@ export class BluetoothService extends Subject<BluetoothService> {
                   stopByteMatches: false,
                   lengthMatches: false,
                   messageLength: 0,
+                  timestamp: 0,
                   data: []
                 }
               ),
@@ -273,6 +267,10 @@ export class BluetoothService extends Subject<BluetoothService> {
   subscribeToNotifierListener(filterOptions, cypherMasterKey?) {
     return this.notifierSubject.pipe(
       map(messageUnformated => {
+        this._console.log(
+          '[BLE::Info] Partial Notification reived from device: ',
+          this.cypherAesService.bytesTohex(messageUnformated)
+        );
         // receive the pure message
         let messageFormmated = messageUnformated as any;
         // validate if the message is cyphered
@@ -325,18 +323,39 @@ export class BluetoothService extends Subject<BluetoothService> {
   ) {
     return defer(() => this._webBle.requestDevice(options)).pipe(
       mergeMap(device => {
-        return defer(() => {
-          device.addEventListener(
-            'gattserverdisconnected',
-            this.onDeviceDisconnected.bind(this)
-          );
-          this.device = device;
-          this._device$.emit(device);
-          return of(device);
-        });
+        this.device = device;
+        this._device$.emit(device);
+        return this.configureDeviceDisconnection$(device).pipe(mapTo(device));
       })
     );
   }
+
+  private configureDeviceDisconnection$(device) {
+    return Observable.create(observer => {
+      of(device)
+        .pipe(
+          mergeMap(dev => fromEvent(device, 'gattserverdisconnected')),
+          take(1)
+        )
+        .subscribe(
+          () => {
+            this._console.log(
+              'Se desconecta disp en OnDevice disconnected!!!!!!!'
+            );
+            this.device = null;
+            this._device$.emit(null);
+          },
+          err => {
+            this._console.log('[BLE::Info] Error in notifier: ', err);
+            observer.error(err);
+          },
+        () => {
+          }
+        );
+      observer.next(`DisconnectionEvent as been register`);
+    });
+  }
+
   /**
    * Discover all available devices and connect to a selected device
    * @param options Options to request the devices the structure is:
@@ -360,7 +379,7 @@ export class BluetoothService extends Subject<BluetoothService> {
     options.optionalServices.push(GattServices.DEVICE_INFORMATION.SERVICE);
     return this.discoverDevice$(options).pipe(
       mergeMap(device => {
-        return defer(() => device.gatt.connect());
+        return defer(() => (device as any).gatt.connect());
       })
     );
   }
@@ -374,15 +393,6 @@ export class BluetoothService extends Subject<BluetoothService> {
     }
   }
 
-  /**
-   * Event that listen when the device connection is lost
-   * @param event
-   */
-  private onDeviceDisconnected(event: Event) {
-    this._console.log('Se decsconecta disp en OnDevice disconnected');
-    this.device = null;
-    this._device$.emit(null);
-  }
   /**
    * get a data from the device using the characteristic
    * @param service UUID or GATT identifier service
