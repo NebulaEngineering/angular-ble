@@ -267,10 +267,6 @@ export class BluetoothService extends Subject<BluetoothService> {
   subscribeToNotifierListener(filterOptions, cypherMasterKey?) {
     return this.notifierSubject.pipe(
       map(messageUnformated => {
-        this._console.log(
-          '[BLE::Info] Partial Notification reived from device: ',
-          this.cypherAesService.bytesTohex(messageUnformated)
-        );
         // receive the pure message
         let messageFormmated = messageUnformated as any;
         // validate if the message is cyphered
@@ -292,6 +288,10 @@ export class BluetoothService extends Subject<BluetoothService> {
             .concat(datablock)
             .concat((messageUnformated as any).slice(-2));
         }
+        this._console.log(
+          '[BLE::Info] Notification reived from device: ',
+          this.cypherAesService.bytesTohex(messageFormmated)
+        );
         return messageFormmated;
       }),
       // filter the message using the filter options
