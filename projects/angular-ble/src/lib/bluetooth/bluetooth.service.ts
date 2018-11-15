@@ -255,7 +255,7 @@ export class BluetoothService extends Subject<BluetoothService> {
       this.sendToNotifier$(message, service, characteristic)
     ).pipe(
       map(([messageResp, _]) => messageResp),
-      timeout(10000)
+      timeout(3000)
     );
   }
   /**

@@ -126,6 +126,17 @@ describe('AesCypherService', () => {
       .toEqual(Array.from(service.encrypt(service.textToBytes('Text must be using padding'))));
   }));
 
+  it('generate cmac', inject([CypherAesService], (service: CypherAesService) => {
+    service.config([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+    const result = service.aesCmac(
+      new Uint8Array([0x6b, 0x33, 0x4d, 0x65, 0x6e, 0x2a, 0x70, 0x2f, 0x32, 0x2e, 0x33, 0x6a, 0x34, 0x61, 0x62, 0x42]),
+      new Uint8Array([0x74, 0x68, 0x69, 0x73, 0x7c, 0x69, 0x73, 0x7c,
+        0x61, 0x7c, 0x74, 0x65, 0x73, 0x74, 0x7c, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65]));
+    expect([236, 2, 2, 7, 71, 241, 150, 122, 27, 78, 208, 65, 141, 177, 4, 168,
+      223, 34, 190, 63, 154, 249, 12, 171, 183, 175, 108, 70, 20, 177, 95, 35])
+      .toEqual(Array.from(service.encrypt(service.textToBytes('Text must be using padding'))));
+  }));
+
 
 
 

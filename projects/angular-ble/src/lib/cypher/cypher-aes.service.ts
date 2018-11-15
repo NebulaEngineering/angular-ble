@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
+declare const Buffer;
 import * as aes from 'aes-js';
+import { Injectable } from '@angular/core';
 
 @Injectable({
   providedIn: 'root'
@@ -12,7 +13,6 @@ export class CypherAesService {
   private enctrypMethodInstance;
   private isConfigExecuted = false;
   private additionalEncryptMethodParams;
-
   constructor() {}
   /**
    * Initial config used to initalice all required params
@@ -119,8 +119,10 @@ export class CypherAesService {
    * Add padding to the list
    */
   private addPadding(arrayBuffer: Uint8Array | Uint16Array | Uint32Array) {
-    const paddingLength = (Math.ceil(Array.from(arrayBuffer).length / 16)) * 16;
-    const paddingList = new Array(paddingLength - Array.from(arrayBuffer).length).fill(0);
+    const paddingLength = Math.ceil(Array.from(arrayBuffer).length / 16) * 16;
+    const paddingList = new Array(
+      paddingLength - Array.from(arrayBuffer).length
+    ).fill(0);
     return new Uint8Array(Array.from(arrayBuffer).concat(paddingList));
   }
   /**
@@ -137,7 +139,9 @@ export class CypherAesService {
         break;
       case 'CTR':
         if (!this.additionalEncryptMethodParams.counter) {
-          throw new Error('additionalEncryptMethodParams.counter is required to use encrypt method CTR');
+          throw new Error(
+            'additionalEncryptMethodParams.counter is required to use encrypt method CTR'
+          );
         }
         enctrypMethodInstance = new aes.ModeOfOperation.ctr(
           this.masterKey,
@@ -146,9 +150,11 @@ export class CypherAesService {
         );
         break;
       case 'CFB':
-      if (!this.additionalEncryptMethodParams.segmentSize) {
-        throw new Error('additionalEncryptMethodParams.segmentSize is required to use encrypt method CFB');
-      }
+        if (!this.additionalEncryptMethodParams.segmentSize) {
+          throw new Error(
+            'additionalEncryptMethodParams.segmentSize is required to use encrypt method CFB'
+          );
+        }
         enctrypMethodInstance = new aes.ModeOfOperation.cfb(
           this.masterKey,
           this.initialVector,
@@ -199,4 +205,126 @@ export class CypherAesService {
     return aes.utils.hex.toBytes(hex);
   }
   // #endregion
+
+  generateSubkeys(key) {
+    const const_Zero = new Uint8Array(16);
+    const const_Rb = new Buffer('00000000000000000000000000000087', 'hex');
+    const enctrypMethodInstance = new aes.ModeOfOperation.cbc(key, new Uint8Array(16));
+
+    const lEncrypted = enctrypMethodInstance.encrypt(const_Zero);
+    const l = new Buffer(this.bytesTohex(lEncrypted), 'hex');
+    let subkey1 = this.bitShiftLeft(l);
+    // tslint:disable-next-line:no-bitwise
+    if (l[0] & 0x80) {
+      subkey1 = this.xor(subkey1, const_Rb);
+    }
+
+    let subkey2 = this.bitShiftLeft(subkey1);
+    // tslint:disable-next-line:no-bitwise
+    if (subkey1[0] & 0x80) {
+      subkey2 = this.xor(subkey2, const_Rb);
+    }
+
+    return { subkey1: subkey1, subkey2: subkey2 };
+  }
+
+  aesCmac(key, message) {
+    console.log('INICIA CIFRADO!!!!!!!!!!!!!!!!');
+    const subkeys = this.generateSubkeys(key);
+    let blockCount = Math.ceil(message.length / 16);
+    let lastBlockCompleteFlag, lastBlock, lastBlockIndex;
+
+    if (blockCount === 0) {
+      blockCount = 1;
+      lastBlockCompleteFlag = false;
+    } else {
+      lastBlockCompleteFlag = message.length % 16 === 0;
+    }
+    lastBlockIndex = blockCount - 1;
+
+    if (lastBlockCompleteFlag) {
+      lastBlock = this.xor(
+        this.getMessageBlock(message, lastBlockIndex),
+        subkeys.subkey1
+      );
+    } else {
+      lastBlock = this.xor(
+        this.getPaddedMessageBlock(message, lastBlockIndex),
+        subkeys.subkey2
+      );
+    }
+
+    let x = new Buffer('00000000000000000000000000000000', 'hex');
+    let y;
+
+    let enctrypMethodInstance;
+    for (let index = 0; index < lastBlockIndex; index++) {
+      enctrypMethodInstance = new aes.ModeOfOperation.cbc(key, new Uint8Array(16));
+      y = this.xor(x, this.getMessageBlock(message, index));
+      const xEncrypted = enctrypMethodInstance.encrypt(y);
+      console.log('X normal ===============> ', this.bytesTohex(y));
+      console.log('X encrypted ==============> ', this.bytesTohex(xEncrypted));
+      x = new Buffer(this.bytesTohex(xEncrypted), 'hex');
+    }
+    y = this.xor(lastBlock, x);
+    enctrypMethodInstance = new aes.ModeOfOperation.cbc(key, new Uint8Array(16));
+    const yEncrypted = enctrypMethodInstance.encrypt(y);
+    console.log('Y normal ==============> ', this.bytesTohex(y));
+    console.log('Y encrypted ==============> ', this.bytesTohex(yEncrypted));
+    return yEncrypted;
+  }
+
+  getMessageBlock(message, blockIndex) {
+    const block = new Buffer(16);
+    const start = blockIndex * 16;
+    const end = start + 16;
+    let blockI = 0;
+    for (let i = start; i < end; i++) {
+      block[blockI] = message[i];
+      blockI++;
+    }
+    return block;
+  }
+
+  getPaddedMessageBlock(message, blockIndex) {
+    const block = new Buffer(16);
+    const start = blockIndex * 16;
+    const end = message.length;
+
+    block.fill(0);
+    let blockI = 0;
+    for (let i = start; i < end; i++) {
+      block[blockI] = message[i];
+      blockI++;
+    }
+    block[end - start] = 0x80;
+
+    return block;
+  }
+
+  bitShiftLeft(buffer) {
+    const shifted = new Buffer(buffer.length);
+    const last = buffer.length - 1;
+    for (let index = 0; index < last; index++) {
+      // tslint:disable-next-line:no-bitwise
+      shifted[index] = buffer[index] << 1;
+      // tslint:disable-next-line:no-bitwise
+      if (buffer[index + 1] & 0x80) {
+        shifted[index] += 0x01;
+      }
+    }
+    // tslint:disable-next-line:no-bitwise
+    shifted[last] = buffer[last] << 1;
+    return shifted;
+  }
+
+  xor(bufferA, bufferB) {
+    const length = Math.min(bufferA.length, bufferB.length);
+    const output = new Buffer(length);
+    for (let index = 0; index < length; index++) {
+      // tslint:disable-next-line:no-bitwise
+      output[index] = bufferA[index] ^ bufferB[index];
+    }
+    return output;
+  }
 }
