@@ -37,6 +37,7 @@ export class BluetoothService extends Subject<BluetoothService> {
   private device: BluetoothDevice;
   private serviceCharacteristicVsSubscriptionList = {};
   private notifierSubject = new Subject();
+  private notifierStartedSubject = new Subject();
   constructor(
     public _webBle: BrowserWebBluetooth,
     private cypherAesService: CypherAesService,
@@ -51,6 +52,10 @@ export class BluetoothService extends Subject<BluetoothService> {
    */
   getDevice$(): Observable<BluetoothDevice> {
     return this._device$;
+  }
+
+  getNotifierStartedSubject$() {
+    return this.notifierStartedSubject;
   }
   /**
    * start a stream by notifiers characteristics
@@ -123,7 +128,8 @@ export class BluetoothService extends Subject<BluetoothService> {
             )
           ),
           tap(() => {
-            this._console.log(`incia las notifiaciones de la caracteristica ================> ${characteristic}`);
+            this.notifierStartedSubject.next(true);
+            this._console.log(`incia las notifiaciones de la caracteristica 2 ================> ${characteristic}`);
           }),
           mergeMap(_ => {
             // start the lister from the even characteristicvaluechanged to get all changes on the specific
