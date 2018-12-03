@@ -38,6 +38,7 @@ export class BluetoothService extends Subject<BluetoothService> {
   private serviceCharacteristicVsSubscriptionList = {};
   private notifierSubject = new Subject();
   private notifierStartedSubject = new Subject();
+  private bluetoothAvailable = false;
   constructor(
     public _webBle: BrowserWebBluetooth,
     private cypherAesService: CypherAesService,
@@ -45,6 +46,13 @@ export class BluetoothService extends Subject<BluetoothService> {
   ) {
     super();
     this._device$ = new EventEmitter<BluetoothDevice>();
+    if (_webBle._ble) {
+      this.bluetoothAvailable = true;
+    }
+  }
+
+  isBluetoothAvailable() {
+    return this.bluetoothAvailable;
   }
   /**
    * get the current device, if the device return null is because the connection has lost
