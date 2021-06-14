@@ -147,8 +147,8 @@ export class AppModule {}
 
   here is an annotated example using the `@nebulae/angular-ble` bluetooth service
 ```javascript
- import { Component, OnInit } from '@angular/core';
-  import { CypherAesService } from 'angular-ble';
+  import { Component, OnInit } from '@angular/core';
+  import { BluetoothService } from '@nebulae/angular-ble';
   @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -189,7 +189,12 @@ export class AppModule {}
 
   //stablish a connection between the browser and a bluetooth device
   connectToDevice() {
-    this.bluetoothService.connectDevice$().subscribe(res => {});
+    this.bluetoothService.connectDevice$(
+      {
+        acceptAllDevices: true,
+        optionalServices:['xxxxxxxx-xxxxx-xxxx-xxxx-xxxxxxxx']
+      }
+    ).subscribe(res => {});
   } 
   // end the stablished connection between the browser and a bluetooth 
   //device
@@ -202,6 +207,14 @@ export class AppModule {}
       this.batteryLevel = res+"";
     })
   }
+
+  readDeviceValue(){
+    this.bluetoothService.readDeviceValue$('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxx','yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyy').subscribe(res => {
+      console.log(res);
+    });
+  }
+
+
   }
 ```
 
