@@ -71,8 +71,7 @@ Import the `AngularBleModule` in your module
 
 ```javascript
 import { NgModule } from '@angular/core';
-import { AngularBleModule } from 'angular-ble';
-
+import { AngularBleModule } from '@nebulae/angular-ble';
 import { AppComponent } from './app.component';
 
 @NgModule({
@@ -453,10 +452,17 @@ this.bluetoothService.startNotifierListener$('battery_service','battery_level').
 #### connectDevice$ <a name="connect_device"></a>
 Discover all available devices and connect to a selected device
 ```javascript
-this.bluetoothService.connectDevice$().subscribe(res => {
+this.bluetoothService.connectDevice$(
+    {
+      acceptAllDevices: true,
+      optionalServices:['xxxxxxxx-xxxx-xxxxx-xxxx-xxxxxxxxxxxx']
+    }
+).subscribe(res => {
   //here you receive the device if the connection is succeful
 });
 ```
+
+'xxxxxxxx-xxxx-xxxxx-xxxx-xxxxxxxxxxxx' is a uuid of your service.
 
 #### disconnectDevice <a name="disconnect_device"></a>
 Disconnect the current device
@@ -469,6 +475,19 @@ this.bluetoothService.readDeviceValue$('battery_service','battery_level').subscr
       console.log('stream value: ', result);
     });
 ```
+
+or 
+
+```javascript
+this.bluetoothService.readDeviceValue$(
+  'xxxxxxxx-xxxx-xxxxx-xxxx-xxxxxxxxxxxx',
+  'yyyyyyyyy-yyyy-yyyy-yyyyyyyy'
+  ).subscribe(result => {
+      console.log('stream value: ', result);
+    });
+```
+xxxxxxxx-xxxx-xxxxx-xxxx-xxxxxxxxxxxx is a uuid of your service and yyyyyyyyy-yyyy-yyyy-yyyyyyyy is a uuid of your characteristic.
+
 
 #### sendToNotifier$ <a name="send_to_notifier"></a>
 Send a message using a notifier characteristic (message must be in bytes)
